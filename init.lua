@@ -5,6 +5,7 @@ chatplus = {
 	distance = minetest.setting_get("chatplus_distance"),
 	log_handle = nil,	-- do not change
 
+	colors = {"4e9a06", "f57900", "ce5c00", "3465a4", "204a87", "75507b", "5c3566", "c17d11", "8f5902", "ef2929", "cc0000", "a40000"},
 	
 	-- Initialise Chat Plus
 	init = function()
@@ -127,6 +128,17 @@ function chatplus.get_distance(v, w)
     )
 end
 
+-- generates a color given player name
+-- should we really do it this way?
+function chatplus.get_color(name)
+	local result = 0
+	for i = 1, #name do
+		local v = string.byte(name:sub(i, i))
+		result = (result * 257 + v) % 10007
+	end
+	return chatplus.colors[result % #chatplus.colors]
+end
+
 -- Register handler caller
 minetest.register_on_chat_message(function(name,msg)
 	if ( chatplus.log_handle ~= nil ) then
@@ -138,14 +150,19 @@ minetest.register_on_chat_message(function(name,msg)
 		for i=1,#chatplus._handlers do
 			if chatplus._handlers[i] then
 				res = chatplus._handlers[i](name,key,msg)
-				
+
 				if res ~= nil then
 					break
 				end
 			end
 		end
 		if (res == nil or res == true) and key~=name  then
-			minetest.chat_send_player(key,"<"..name.."> "..msg,false)
+			local message_tmp = msg
+			if msg:find(key) then
+				-- hilight
+				message_tmp = freeminer.colorize("db6700", message_tmp)
+			end
+			minetest.chat_send_player(key,"<"..freeminer.colorize(chatplus.get_color(name), name).."> ".. message_tmp, false)
 		end
 	end
 
@@ -185,8 +202,8 @@ minetest.register_on_joinplayer(function(player)
 	end
 
 	if _player.messages and #_player.messages>0 then
-		-- Sending chat messages immediately on join are sometimes missed or not received at all so we delay it	
-		minetest.after(10,minetest.chat_send_player,player:get_player_name(),"("..#_player.messages..") You have mail! Type /inbox to recieve")	
+		-- Sending chat messages immediately on join are sometimes missed or not received at all so we delay it
+		minetest.after(10,minetest.chat_send_player,player:get_player_name(),"("..#_player.messages..") You have mail! Type /inbox to recieve")
 		--minetest.chat_send_player(player:get_player_name(),"("..#_player.messages..") You have mail! Type /inbox to recieve")
 	end
 end)
@@ -206,7 +223,7 @@ minetest.register_globalstep(function(dtime)
 		chatplus.count = 0
 		-- loop through player list
 		for key,value in pairs(chatplus.players) do
-			if chatplus._players and chatplus._players[key] and chatplus._players[key].player and value and value.messages and chatplus._players[key].player.hud_add and chatplus._players[key].lastcount ~= #value.messages then				
+			if chatplus._players and chatplus._players[key] and chatplus._players[key].player and value and value.messages and chatplus._players[key].player.hud_add and chatplus._players[key].lastcount ~= #value.messages then
 				if chatplus._players[key].msgicon then
 					chatplus._players[key].player:hud_remove(chatplus._players[key].msgicon)
 				end
@@ -231,7 +248,7 @@ minetest.register_globalstep(function(dtime)
 						text=#value.messages,
 						scale = {x=1,y=1},
 						alignment = {x=0.5, y=0.5},
-					})					
+					})
 				end
 				chatplus._players[key].lastcount = #value.messages
 			end
@@ -290,7 +307,7 @@ minetest.register_chatcommand("mail", {
 	func = function(name, param)
 		chatplus.poke(name)
 		local to, msg = string.match(param, "([%a%d_]+) (.+)")
-		
+
 		if not to or not msg then
 			minetest.chat_send_player(name,"mail: <playername> <msg>")
 			return
@@ -299,13 +316,13 @@ minetest.register_chatcommand("mail", {
 		print("To: "..to)
 		print("From: "..name)
 		print("MSG: "..msg)
-		
+
 		if chatplus.players[to] then
 			table.insert(chatplus.players[to].messages,"mail from <"..name..">: "..msg)
-			minetest.chat_send_player(name,"Message sent")
+			minetest.chat_send_player(name, "Message sent")
 			chatplus.save()
 		else
-			minetest.chat_send_player(name,"Player "..to.." does not exist")
+			minetest.chat_send_player(name, "Player "..to.." does not exist")
 		end
 	end,
 })
